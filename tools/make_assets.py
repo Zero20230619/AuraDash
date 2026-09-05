@@ -128,7 +128,7 @@ def make_banner():
 
 def make_sounds():
     from aurar.platform import sounds
-    out = sounds.ensure_sound_files(os.path.join(ASSETS, "sounds"))
+    out = sounds.regenerate_sound_files(os.path.join(ASSETS, "sounds"))
     for k, v in out.items():
         print(f"提示音 {k}: {v}")
 

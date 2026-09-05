@@ -1,7 +1,10 @@
-"""第 3 页 · 专注时钟（番茄钟）：倒计时 + 随机间隔“双叮”提醒 + 专注助手屏蔽通知。
+"""第 3 页 · 专注时钟（番茄钟）：倒计时 + 可选随机间隔“叮”提醒 + 专注助手屏蔽通知。
 
-创新点：专注中每隔 3~5 分钟（随机秒数）提醒一次，第一次提醒后 10 秒再响
-第二次，随后进入下一轮随机等待 —— 基于“随机奖励”心理学机制增强持续专注动力。
+时长控件：两个 QSpinBox 组合为「0 h + 25 min」结构 ——
+数字可以自由输入或用上下箭头调整，而 “h” / “min” 后缀不可编辑删除。
+
+随机提醒为可选项（勾选框）：开启后每 3~5 分钟（随机整数秒）响一声清脆的
+“叮”，10 秒后补第二声，再进入下一轮随机等待；关闭则作为普通计时器使用。
 """
 
 import datetime
@@ -10,8 +13,8 @@ import os
 import random
 
 from PySide6.QtCore import QTimer, QUrl, Qt
-from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QMessageBox,
-                               QPushButton, QVBoxLayout)
+from PySide6.QtWidgets import (QCheckBox, QFrame, QHBoxLayout, QLabel,
+                               QMessageBox, QPushButton, QSpinBox, QVBoxLayout)
 
 from ..core.logger import get_logger
 from ..core.paths import sounds_dir, stats_path
@@ -22,11 +25,11 @@ from .base import Page
 
 log = get_logger("focus")
 
-PRESETS = (15, 25, 45, 60)
+DEFAULT_FALLBACK_MIN = 25  # 未设置时长时的默认值
 
 
 class _Player:
-    """QSoundEffect 封装，失败时回退系统蜂鸣。"""
+    """QSoundEffect 封装，失败时回退系统蜂鸣。每次播放可指定音效文件。"""
 
     def __init__(self):
         self._effects = {}
@@ -42,7 +45,6 @@ class _Player:
 
     def play(self, path: str, volume=0.85):
         if not self._ok:
-            import sys
             from PySide6.QtWidgets import QApplication  # noqa: PLC0415
 
             app = QApplication.instance()
@@ -93,11 +95,10 @@ class FocusPage(Page):
 
         clock_row = QHBoxLayout()
         clock_row.addStretch(1)
-
         self._gauge = RingGauge(230, thickness=13, sub="剩余",
                                 color_provider=self._page_colors,
                                 center_mode="none", parent=self)
-        self._time_lb = make_label("25:00", "Mono", parent=self._gauge)
+        self._time_lb = make_label("00:00", "Mono", parent=self._gauge)
         self._time_lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._time_lb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
         self._time_lb.setStyleSheet(
@@ -108,22 +109,35 @@ class FocusPage(Page):
         clock_row.addStretch(1)
         root.addLayout(clock_row)
 
-        self._status = make_label("待机中 · 选择时长后开始", "SubText", parent=self)
+        # ---- 时长设置：0 h + 0 min（后缀固定，数字可输入/上下箭头） ----
+        dur_row = QHBoxLayout()
+        dur_row.setSpacing(8)
+        dur_row.addStretch(1)
+        self._spin_h = QSpinBox(self)
+        self._spin_h.setRange(0, 12)
+        self._spin_h.setSuffix(" h")
+        self._spin_h.setFixedWidth(96)
+        self._spin_h.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._spin_h.valueChanged.connect(self._on_duration_changed)
+        self._spin_m = QSpinBox(self)
+        self._spin_m.setRange(0, 59)
+        self._spin_m.setSuffix(" min")
+        self._spin_m.setFixedWidth(112)
+        self._spin_m.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._spin_m.valueChanged.connect(self._on_duration_changed)
+        dur_row.addWidget(self._spin_h)
+        dur_row.addWidget(self._spin_m)
+        dur_row.addStretch(1)
+        root.addLayout(dur_row)
+
+        self._status = make_label("待机中 · 设置时长后开始", "SubText", parent=self)
         self._status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self._status)
 
+        # ---- 控制按钮 ----
         ctrl = QHBoxLayout()
         ctrl.setSpacing(8)
         ctrl.addStretch(1)
-        self._combo = QComboBox(self)
-        self._combo.setEditable(True)
-        for m in PRESETS:
-            self._combo.addItem(f"{m} 分钟", m)
-        self._combo.setCurrentIndex(1)
-        self._combo.setFixedWidth(130)
-        self._combo.editTextChanged.connect(self._on_duration_text)
-        ctrl.addWidget(self._combo)
-
         self._btn_start = QPushButton("开始", self)
         self._btn_start.setObjectName("Primary")
         self._btn_start.setFixedWidth(96)
@@ -138,26 +152,36 @@ class FocusPage(Page):
         ctrl.addStretch(1)
         root.addLayout(ctrl)
 
-        hint = make_label(
-            "专注中每 3~5 分钟随机“叮”一次提醒，10 秒后补第二声，帮助保持专注节奏。\n"
-            "开启后自动启用 Windows 专注助手（仅限闹钟），结束后恢复原设置。",
-            "SubText", size=11, parent=self)
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(hint)
+        # ---- 随机提醒（可选） ----
+        self._chk_remind = QCheckBox("随机间隔提醒：每 3~5 分钟“叮”一声（10 秒后补第二声）", self)
+        self._chk_remind.setChecked(bool(self.cfg.get("focus_random_remind", True)))
+        self._chk_remind.toggled.connect(
+            lambda on: self.cfg.set("focus_random_remind", on))
+        root.addWidget(self._chk_remind)
 
-        self._stats = make_label("", "SubText", parent=self)
-        self._stats.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        root.addWidget(self._stats)
+        # ---- 今日统计 ----
+        stats = QFrame(self)
+        stats.setObjectName("StatsBox")
+        sl = QHBoxLayout(stats)
+        sl.setContentsMargins(14, 10, 14, 10)
+        sl.setSpacing(12)
+        col = QVBoxLayout()
+        col.setSpacing(2)
+        self._stats_title = make_label("今日累计专注", "SubText", parent=stats)
+        self._stats_value = make_label("0 分钟", "ValueBig", parent=stats)
+        self._stats_count = make_label("0 次完成", "SubText", parent=stats)
+        col.addWidget(self._stats_title)
+        col.addWidget(self._stats_value)
+        col.addWidget(self._stats_count)
+        sl.addLayout(col, 1)
+        root.addWidget(stats)
 
         root.addStretch(1)
-
-        self._combo.setCurrentText(f"{self.cfg.get('focus_minutes', 25)} 分钟")
-        self._configure(self.cfg.get("focus_minutes", 25) * 60)
+        self._render()
         self._update_stats_label()
 
     def _gauge_layout_overlay(self):
         g = self._gauge
-        # 倒计时文字居中于环形仪表
         self._time_lb.setGeometry(0, g.height() // 2 - 30, g.width(), 48)
 
     def _page_colors(self):
@@ -166,26 +190,40 @@ class FocusPage(Page):
         p = theme_mod.palette(self.cfg)
         return p["accent1"], p["accent2"]
 
+    # ---------------- 时长 ----------------
+    def _on_duration_changed(self):
+        if self._running:
+            return
+        secs = self._spin_h.value() * 3600 + self._spin_m.value() * 60
+        if secs > 0:
+            self._configure(secs)
+            self.cfg.set("focus_minutes", round(secs / 60.0))
+
+    def _total_from_spins(self) -> float:
+        return self._spin_h.value() * 3600 + self._spin_m.value() * 60
+
     # ---------------- 状态机 ----------------
     def _configure(self, total_sec):
         self._total = total_sec
         self._remain = total_sec
         self._render()
 
-    def _on_duration_text(self, text):
-        try:
-            mins = int("".join(ch for ch in text if ch.isdigit()) or 0)
-            if not self._running and mins > 0:
-                self._configure(mins * 60)
-                self.cfg.set("focus_minutes", mins)
-        except ValueError:
-            pass
-
     def start(self):
         if self._running:
             return
-        if self._remain <= 0:
-            self._configure(self._total or 25 * 60)
+        total = self._total_from_spins()
+        if total <= 0:
+            ret = QMessageBox.question(
+                self, "未设置时长",
+                f"当前时长为 0h 0min，是否使用默认 {DEFAULT_FALLBACK_MIN} 分钟开始？",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes)
+            if ret != QMessageBox.StandardButton.Yes:
+                return
+            self._spin_h.setValue(0)
+            self._spin_m.setValue(DEFAULT_FALLBACK_MIN)
+            total = DEFAULT_FALLBACK_MIN * 60
+        self._configure(total)
         self._running = True
         self._finishing = False
         self._tick.start()
@@ -193,6 +231,7 @@ class FocusPage(Page):
         self._btn_pause.setEnabled(True)
         self._status.setText("专注中 · 放松，保持节奏")
         self._schedule_next_remind()
+        self._play("click_start", volume=0.7)
         self._set_assist(True)
 
     def pause(self):
@@ -203,6 +242,7 @@ class FocusPage(Page):
         self._btn_start.setEnabled(True)
         self._btn_pause.setEnabled(False)
         self._status.setText("已暂停")
+        self._play("click_pause", volume=0.7)
         self._set_assist(False)
 
     def reset(self):
@@ -211,9 +251,10 @@ class FocusPage(Page):
         self._finishing = False
         self._btn_start.setEnabled(True)
         self._btn_pause.setEnabled(False)
-        self._configure(self._total or 25 * 60)
-        self._status.setText("待机中 · 选择时长后开始")
+        self._status.setText("待机中 · 设置时长后开始")
+        self._play("click_reset", volume=0.7)
         self._set_assist(False)
+        self._render()
 
     def _on_tick(self):
         if not self._running:
@@ -224,39 +265,43 @@ class FocusPage(Page):
         if self._remain <= 0:
             self._finish()
 
-    # ---------------- 随机双叮提醒 ----------------
+    # ---------------- 随机双叮提醒（可选） ----------------
+    def _remind_enabled(self) -> bool:
+        return bool(self._chk_remind.isChecked())
+
     def _schedule_next_remind(self):
-        # 3~5 分钟随机整数秒
-        self._next_remind = random.randint(180, 300)
+        if not self._remind_enabled():
+            self._next_remind = None
+            return
+        self._next_remind = random.randint(180, 300)  # 3~5 分钟随机整数秒
         self._second_remind = False
         log.debug("下次随机提醒于 %d 秒后", self._next_remind)
 
     def _check_remind(self):
-        if self._running and not self._second_remind:
-            self._next_remind -= 1
-            if self._next_remind <= 0:
-                self._play_ding()
-                self._tick_second()
-
-    def _tick_second(self):
-        # 第一声后 10 秒补第二声，然后进入下一轮随机等待
-        self._second_remind = True
-        QTimer.singleShot(10000, self._second_ding)
+        if not self._running or not self._remind_enabled() or self._second_remind:
+            return
+        self._next_remind -= 1
+        if self._next_remind is not None and self._next_remind <= 0:
+            self._play("ding")
+            self._second_remind = True
+            QTimer.singleShot(10000, self._second_ding)
 
     def _second_ding(self):
-        if self._running and self._second_remind and not self._finishing:
-            self._play_ding()
+        if self._running and self._second_remind and not self._finishing \
+                and self._remind_enabled():
+            self._play("ding")
             self._schedule_next_remind()
 
-    def _play_ding(self):
-        path = self._sound_path()
-        self._get_player().play(path)
-
-    def _sound_path(self) -> str:
-        user = self.cfg.get("sound_file", "") or ""
-        if user and os.path.exists(user):
-            return user
-        return sound_mod.ensure_sound_files(sounds_dir())["ding"]
+    # ---------------- 音效 ----------------
+    def _play(self, name: str, volume=0.85):
+        sounds = sound_mod.ensure_sound_files(sounds_dir())
+        path = sounds.get(name)
+        if name == "ding":
+            user = self.cfg.get("sound_file", "") or ""
+            if user and os.path.exists(user):
+                path = user
+        if path:
+            self._get_player().play(path, volume=volume)
 
     # ---------------- 结束 ----------------
     def _finish(self):
@@ -267,8 +312,7 @@ class FocusPage(Page):
         self._btn_pause.setEnabled(False)
         self._set_assist(False)
         self._status.setText("专注结束")
-        chime = sound_mod.ensure_sound_files(sounds_dir())["chime"]
-        self._get_player().play(chime, volume=0.9)
+        self._play("chime", volume=0.9)
         self._record_session()
         self._update_stats_label()
         QMessageBox.information(self, "专注结束",
@@ -301,8 +345,11 @@ class FocusPage(Page):
     def _update_stats_label(self):
         today = datetime.date.today().isoformat()
         items = [s for s in self._load_stats() if s.get("date") == today]
-        minutes = sum(float(s.get("minutes", 0)) for s in items)
-        self._stats.setText(f"今日专注：{len(items)} 次  ·  累计 {minutes:.0f} 分钟")
+        minutes = float(sum(float(s.get("minutes", 0)) for s in items))
+        h, m = int(minutes // 60), int(minutes % 60)
+        value = f"{h} 小时 {m} 分钟" if h else f"{m} 分钟"
+        self._stats_value.setText(value)
+        self._stats_count.setText(f"{len(items)} 次完成")
 
     # ---------------- 专注助手 ----------------
     _assist_was_on = False
@@ -331,6 +378,7 @@ class FocusPage(Page):
     def on_show(self):
         self._render()
         self._gauge_layout_overlay()
+        self._update_stats_label()
 
     def stop(self):
         """应用退出时恢复专注助手、停止计时器。"""

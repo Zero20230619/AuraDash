@@ -7,11 +7,13 @@
 import time
 
 import psutil
-from PySide6.QtCore import (QAbstractTableModel, QModelIndex, QRegularExpression,
-                            QSortFilterProxyModel, Qt, QThread, Signal)
-from PySide6.QtWidgets import (QAbstractItemView, QHBoxLayout, QHeaderView,
-                               QLabel, QLineEdit, QMessageBox, QTableView,
-                               QVBoxLayout)
+from PySide6.QtCore import (QAbstractTableModel, QFileInfo, QModelIndex,
+                            QRegularExpression, QSortFilterProxyModel, QSize, Qt,
+                            QThread, Signal)
+from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import (QAbstractItemView, QApplication, QFileIconProvider,
+                               QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+                               QMessageBox, QStyle, QTableView, QVBoxLayout)
 
 from ..core.logger import get_logger
 from ..ui.widgets import make_label
@@ -41,7 +43,7 @@ class ProcessMonitor(QThread):
         cores = max(1, psutil.cpu_count() or 1)
         rows = []
         for p in psutil.process_iter(["pid", "name", "cpu_percent",
-                                      "memory_info", "status"]):
+                                      "memory_info", "exe"]):
             try:
                 info = p.info
                 name = info.get("name") or f"PID {info.get('pid')}"
@@ -52,7 +54,7 @@ class ProcessMonitor(QThread):
                     # 与任务管理器一致：按核心数归一化（psutil 返回值可达 100%×核心数）
                     "cpu": round(float(info.get("cpu_percent") or 0.0) / cores, 1),
                     "mem_mb": round((mem.rss if mem else 0) / 1048576.0, 1),
-                    "status": str(info.get("status") or ""),
+                    "exe": info.get("exe") or "",
                 })
             except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                 continue
@@ -81,6 +83,37 @@ class ProcessTableModel(QAbstractTableModel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._rows: list[dict] = []
+        self._icon_provider = None
+        self._icon_cache: dict[str, QPixmap] = {}
+        self._fallback_icon = None
+
+    def _icon(self, exe: str) -> QPixmap:
+        """按可执行文件路径取进程图标（QFileIconProvider + 缓存）。"""
+        key = exe or ""
+        if key in self._icon_cache:
+            return self._icon_cache[key]
+        if len(self._icon_cache) > 1500:
+            self._icon_cache.clear()
+        try:
+            if self._icon_provider is None:
+                self._icon_provider = QFileIconProvider()
+            if exe:
+                icon = self._icon_provider.icon(QFileInfo(exe))
+            else:
+                icon = QFileIconProvider().icon(QFileInfo(""))
+            pix = icon.pixmap(QSize(16, 16))
+            if pix.isNull():
+                pix = self._fallback()
+        except Exception:  # noqa: BLE001
+            pix = self._fallback()
+        self._icon_cache[key] = pix
+        return pix
+
+    def _fallback(self) -> QPixmap:
+        if self._fallback_icon is None:
+            self._fallback_icon = QApplication.style().standardIcon(
+                QStyle.StandardPixmap.SP_FileIcon).pixmap(QSize(16, 16))
+        return self._fallback_icon
 
     def rowCount(self, parent=QModelIndex()):
         return 0 if parent.isValid() else len(self._rows)
@@ -107,6 +140,8 @@ class ProcessTableModel(QAbstractTableModel):
                 return f"{row['cpu']:.1f}"
             if col == 3:
                 return f"{row['mem_mb']:.0f}"
+        elif role == Qt.ItemDataRole.DecorationRole and col == 0:
+            return self._icon(row.get("exe", ""))
         elif role == Qt.ItemDataRole.UserRole:  # 排序用原始值
             if col == 0:
                 return (row["name"] or "").lower()
@@ -158,7 +193,7 @@ class ProcessesPage(Page):
 
     def __init__(self, ctx, parent=None):
         super().__init__(ctx, parent)
-        self._monitor = ProcessMonitor(interval=self.cfg.get("refresh_sec", 1.0))
+        self._monitor = ProcessMonitor(interval=self.cfg.get("process_refresh_sec", 5.0))
         self._rows_cache = []
 
     def build(self):
@@ -192,7 +227,7 @@ class ProcessesPage(Page):
         self._table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self._table.verticalHeader().setVisible(False)
-        self._table.verticalHeader().setDefaultSectionSize(24)
+        self._table.verticalHeader().setDefaultSectionSize(26)
         hh = self._table.horizontalHeader()
         hh.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         for c in (1, 2, 3):
@@ -202,7 +237,7 @@ class ProcessesPage(Page):
         self._table.doubleClicked.connect(self._on_double)
         root.addWidget(self._table, 1)
 
-        tip = make_label("双击进程 → 确认后结束  ·  点击列头排序  ·  数据每秒刷新，列表位置保持稳定",
+        tip = make_label("双击进程 → 确认后结束  ·  点击列头排序  ·  每 5 秒自动刷新（列表位置保持稳定）",
                          "SubText", size=11, parent=self)
         root.addWidget(tip)
 
@@ -212,8 +247,8 @@ class ProcessesPage(Page):
         self._monitor.start()
 
     def _on_cfg(self, key):
-        if key in ("refresh_sec", "*"):
-            self._monitor.set_interval(self.cfg.get("refresh_sec", 1.0))
+        if key in ("process_refresh_sec", "*"):
+            self._monitor.set_interval(self.cfg.get("process_refresh_sec", 5.0))
 
     def stop(self):
         self._monitor.stop()

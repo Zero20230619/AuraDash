@@ -146,6 +146,8 @@ class DashCard(NeonCard):
 
 # ------------------------------------------------------------------ 卡片实现
 class ClockCard(DashCard):
+    title = "实时时钟"
+
     def __init__(self, page):
         super().__init__("clock", "实时时钟", page)
         self._time = make_label("--:--:--", "BigTime", parent=self)
@@ -166,6 +168,8 @@ class ClockCard(DashCard):
 
 
 class CpuCard(DashCard):
+    title = "CPU"
+
     def __init__(self, page):
         super().__init__("cpu", "CPU", page)
         self._gauge = RingGauge(GAUGE, sub="占用率",
@@ -229,6 +233,8 @@ class CpuCard(DashCard):
 
 
 class GpuCard(DashCard):
+    title = "GPU"
+
     def __init__(self, page):
         super().__init__("gpu", "GPU", page)
         self._gauge = RingGauge(GAUGE, sub="占用率",
@@ -268,6 +274,8 @@ class GpuCard(DashCard):
 
 
 class MemCard(DashCard):
+    title = "内存"
+
     def __init__(self, page):
         super().__init__("memory", "内存", page)
         self._gauge = RingGauge(GAUGE, sub="占用率",
@@ -291,6 +299,8 @@ class MemCard(DashCard):
 
 
 class DiskCard(DashCard):
+    title = "磁盘"
+
     def __init__(self, page):
         super().__init__("disk", "磁盘", page)
         self._rows = {}
