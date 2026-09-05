@@ -13,8 +13,8 @@ log = get_logger("theme")
 BASE_DARK = {
     "bg": "#0A0E1A",
     "bg2": "#101830",
-    "text": "#E6ECF8",
-    "sub": "#8FA3C0",
+    "text": "#F2F6FF",
+    "sub": "#AFC2DE",       # 次要文字：提亮，保证深色背景下高对比
     "danger": "#FF6B81",
     "card": "#141D38",      # 卡片实底（不随透明度变化 → 文字始终高对比）
     "chrome": "#0D1428",    # 标题栏/侧栏实底
@@ -269,6 +269,24 @@ QToolTip {
     border-radius: 6px; padding: 4px 8px;
 }
 QSizeGrip { background: transparent; width: 14px; height: 14px; }
-QMessageBox, QDialog { background: @@BG2@@; }
+QMessageBox, QDialog {
+    background: @@CARD@@; border: 1px solid @@BORDER@@;
+}
+QDialog QLabel { color: @@TEXT@@; }
+QDialog QLabel#SubText { color: @@SUB@@; }
+QDialog QCheckBox { color: @@TEXT@@; }
+
+/* ---------- 标签页（设置窗口） ---------- */
+QTabWidget::pane { border: none; margin-top: 8px; }
+QTabBar::tab {
+    background: transparent; color: @@SUB@@; padding: 8px 18px;
+    border: none; border-radius: 9px; margin-right: 4px; font-size: 13px;
+}
+QTabBar::tab:hover { color: @@TEXT@@; background: @@PANEL2@@; }
+QTabBar::tab:selected {
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                stop:0 rgba(0,212,255,0.25), stop:1 rgba(123,47,190,0.28));
+    color: @@TEXT@@; font-weight: 600;
+}
 QStatusBar { background: transparent; color: @@SUB@@; }
 """

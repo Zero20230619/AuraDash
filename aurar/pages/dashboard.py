@@ -368,9 +368,9 @@ class DashboardPage(Page):
         for cid, factory in CARD_FACTORIES.items():
             card = factory(self)
             self._cards[cid] = card
-        hint = make_label("≡ 长按标题拖拽排序   ·   ✕ 隐藏卡片（设置页可恢复）",
-                          "SubText", size=11, parent=self)
-        self._grid.addWidget(hint, 99, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
+        self._hint = make_label("≡ 长按标题拖拽排序   ·   ✕ 隐藏卡片（设置页可恢复）",
+                                "SubText", size=11, parent=self)
+        self._grid.addWidget(self._hint, 99, 0, 1, 2, Qt.AlignmentFlag.AlignLeft)
         self._grid.setRowStretch(99, 1)
         self.subscribe("sysmon:data", self.on_data)
         self.cfg.changed.connect(self._on_cfg)
@@ -386,14 +386,32 @@ class DashboardPage(Page):
         order += [cid for cid in CARD_FACTORIES if cid not in order]
         return [cid for cid in order if cid in self._cards and cid not in hidden]
 
-    def _relayout(self):
+    def _cols_for(self, width: int) -> int:
+        """窗口变窄时卡片自动收为单列，避免重叠遮挡。"""
+        return 1 if width < 580 else 2
+
+    def _relayout(self, cols: int | None = None):
+        if cols is None:
+            cols = self._cols_for(self.width())
+        cols = max(1, min(2, cols))
+        self._cols = cols
         for card in self._cards.values():
             self._grid.removeWidget(card)
+        self._grid.removeWidget(self._hint)
         for i, cid in enumerate(self._visible_order()):
             card = self._cards[cid]
-            self._grid.addWidget(card, i // 2, i % 2)
+            self._grid.addWidget(card, i // cols, i % cols)
             card.setMinimumHeight(160)
+        self._grid.addWidget(self._hint, 99, 0, 1, cols, Qt.AlignmentFlag.AlignLeft)
         self._grid.setRowStretch(99, 1)
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        if not hasattr(self, "_hint"):
+            return  # 尚未构建完成
+        new_cols = self._cols_for(self.width())
+        if new_cols != getattr(self, "_cols", None):
+            self._relayout(new_cols)
 
     def hide_card(self, cid: str):
         hidden = [h for h in self.cfg.get("hidden_cards", []) if h != cid]

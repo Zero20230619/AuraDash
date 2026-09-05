@@ -20,7 +20,7 @@ def _build_parser():
                         help="启动时不申请管理员权限")
     parser.add_argument("--screenshot", metavar="DIR",
                         help="开发者工具：将各页面截图保存到 DIR 后退出")
-    parser.add_argument("--version", action="version", version="AuraDash 1.0.1")
+    parser.add_argument("--version", action="version", version="AuraDash 1.0.2")
     return parser
 
 
