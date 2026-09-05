@@ -67,6 +67,11 @@
 
 ## 🚀 快速开始
 
+### 方式零：下载发布版（最简单）
+
+前往 [Releases](https://github.com/Zero20230619/AuraDash/releases) 下载 `AuraDash_v1.0.0.exe`，双击即用（免安装，单文件）。
+> Windows 智能屏幕提示“未知发布者”时：`更多信息 → 仍要运行`（未做代码签名，属正常现象）。
+
 ### 方式一：直接运行（开发模式）
 
 ```powershell

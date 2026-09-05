@@ -1,32 +1,41 @@
-# AuraDash 一键构建脚本（Windows PowerShell）
-# 用法：powershell -ExecutionPolicy Bypass -File build.ps1
-# 产物：dist\AuraDash.exe（单文件，约 30-40MB）
+# AuraDash build script (Windows PowerShell)
+# Usage: powershell -ExecutionPolicy Bypass -File build.ps1          # onedir mode (fast startup)
+#        powershell -ExecutionPolicy Bypass -File build.ps1 -OneFile # single-file EXE for release
+param([switch]$OneFile)
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 
-# 1. 虚拟环境
+# 1. virtualenv
 $Venv = Join-Path $Root ".venv"
 if (-not (Test-Path $Venv)) {
-    Write-Host "==> 创建虚拟环境 .venv"
+    Write-Host "==> create venv .venv"
     python -m venv $Venv
 }
 $Py = Join-Path $Venv "Scripts\python.exe"
 & $Py -m pip install --upgrade pip --quiet
-Write-Host "==> 安装依赖"
+Write-Host "==> install deps"
 & $Py -m pip install -r requirements.txt pyinstaller --quiet
 
-# 2. 生成资源（图标 / 提示音）
-Write-Host "==> 生成资源"
+# 2. generate assets (icon / sounds)
+Write-Host "==> generate assets"
 & $Py tools\make_assets.py
 
-# 3. 打包（--onedir 更快启动；如需单文件改 --onefile）
-Write-Host "==> PyInstaller 打包"
-& $Py -m PyInstaller --noconfirm --clean --windowed `
-    --name AuraDash --icon assets\aura.ico `
-    --add-data "assets;assets" `
-    main.py
-
-Write-Host ""
-Write-Host "完成：dist\AuraDash\AuraDash.exe"
+# 3. PyInstaller (--onefile when -OneFile, otherwise onedir)
+Write-Host "==> PyInstaller packaging"
+if ($OneFile) {
+    & $Py -m PyInstaller --noconfirm --clean --windowed --onefile `
+        --name AuraDash --icon assets\aura.ico `
+        --add-data "assets;assets" `
+        main.py
+    Write-Host ""
+    Write-Host "DONE: dist\AuraDash.exe (single file)"
+} else {
+    & $Py -m PyInstaller --noconfirm --clean --windowed `
+        --name AuraDash --icon assets\aura.ico `
+        --add-data "assets;assets" `
+        main.py
+    Write-Host ""
+    Write-Host "DONE: dist\AuraDash\AuraDash.exe"
+}
