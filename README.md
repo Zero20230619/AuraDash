@@ -12,7 +12,7 @@
 [![PySide6](https://img.shields.io/badge/PySide6-6.8%2B-3776AB?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Windows](https://img.shields.io/badge/Windows-10%2022H2%2F11-0078D4?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?logo=opensourceinitiative&logoColor=white)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.0.0-00D4FF)](https://github.com/)
+[![Release](https://img.shields.io/badge/release-v1.0.0-00D4FF)](https://github.com/Zero20230619/AuraDash)
 
 </div>
 
