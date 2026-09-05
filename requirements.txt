@@ -1,0 +1,5 @@
+# AuraDash runtime dependencies (Python 3.10+)
+PySide6>=6.8.0
+psutil>=7.0.0
+nvidia-ml-py>=12.0.0
+GPUtil>=1.4.0
