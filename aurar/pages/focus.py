@@ -101,9 +101,7 @@ class FocusPage(Page):
         self._time_lb = make_label("00:00", "Mono", parent=self._gauge)
         self._time_lb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._time_lb.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        self._time_lb.setStyleSheet(
-            "font-family: 'Bahnschrift','Consolas'; font-size: 44px; font-weight: 600;"
-            "color: #E6ECF8; background: transparent;")
+        self._apply_theme_text()
         self._gauge_layout_overlay()
         clock_row.addWidget(self._gauge)
         clock_row.addStretch(1)
@@ -179,6 +177,7 @@ class FocusPage(Page):
         root.addStretch(1)
         self._render()
         self._update_stats_label()
+        self.cfg.changed.connect(self._on_cfg_theme)
 
     def _gauge_layout_overlay(self):
         g = self._gauge
@@ -186,9 +185,22 @@ class FocusPage(Page):
 
     def _page_colors(self):
         from ..core import theme as theme_mod
+        from PySide6.QtGui import QColor
 
         p = theme_mod.palette(self.cfg)
-        return p["accent1"], p["accent2"]
+        if p["theme_name"] == "light":
+            track = QColor(30, 50, 110, 28)
+        else:
+            track = QColor(240, 250, 255, 26)
+        return {"c1": p["accent1"], "c2": p["accent2"],
+                "text": p["text"], "sub": p["sub"], "track": track}
+
+    def _apply_theme_text(self):
+        """主题切换时更新倒计时文字颜色（主题感知）。"""
+        p = self._page_colors()
+        self._time_lb.setStyleSheet(
+            "font-family: 'Bahnschrift','Consolas'; font-size: 44px; font-weight: 600;"
+            f"color: {p['text']}; background: transparent;")
 
     # ---------------- 时长 ----------------
     def _on_duration_changed(self):
@@ -379,6 +391,10 @@ class FocusPage(Page):
         self._render()
         self._gauge_layout_overlay()
         self._update_stats_label()
+
+    def _on_cfg_theme(self, key):
+        if key == "*" or key.startswith("theme"):
+            self._apply_theme_text()
 
     def stop(self):
         """应用退出时恢复专注助手、停止计时器。"""

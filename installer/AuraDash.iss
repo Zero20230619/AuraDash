@@ -3,7 +3,7 @@
 ; 准备工作：先运行 build.ps1 生成 dist\AuraDash\AuraDash.exe
 
 #define MyAppName "AuraDash"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "AuraDash Contributors"
 #define MyAppExeName "AuraDash.exe"
 

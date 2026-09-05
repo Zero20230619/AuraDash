@@ -50,7 +50,10 @@ class RingGauge(QWidget):
         self._size = size
         self._th = thickness
         self._sub = sub
-        self._color_provider = color_provider or (lambda: ("#00D4FF", "#7B2FBE"))
+        self._color_provider = color_provider or (
+            lambda: {"c1": "#00D4FF", "c2": "#7B2FBE",
+                     "text": "#E9F0FC", "sub": "#96A4C8",
+                     "track": QColor(240, 250, 255, 26)})
         self._font_size = center_font_size or int(size * 0.23)
         self._center_mode = center_mode  # "value" 显示百分比 | "none" 留空给自定义控件
         self._v = 0.0
@@ -87,9 +90,16 @@ class RingGauge(QWidget):
         self.update()
 
     def paintEvent(self, _ev):
-        c1c, c2c = self._color_provider()
-        c1 = QColor(c1c)
-        c2 = QColor(c2c)
+        cp = self._color_provider()
+        if isinstance(cp, (tuple, list)):
+            cp = {"c1": cp[0], "c2": cp[1],
+                  "text": "#E9F0FC", "sub": "#96A4C8",
+                  "track": QColor(240, 250, 255, 26)}
+        c1 = QColor(cp["c1"])
+        c2 = QColor(cp["c2"])
+        text_c = QColor(cp.get("text", "#E9F0FC"))
+        sub_c = QColor(cp.get("sub", "#96A4C8"))
+        track_c = QColor(cp.get("track", QColor(240, 250, 255, 26)))
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -99,7 +109,7 @@ class RingGauge(QWidget):
         frac = max(0.0, min(100.0, self._v)) / 100.0
 
         # 轨道
-        pen = QPen(QColor(240, 250, 255, 26), self._th)
+        pen = QPen(track_c, self._th)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         p.setPen(pen)
         p.drawArc(rect, 0, 360 * 16)
@@ -127,20 +137,20 @@ class RingGauge(QWidget):
             f.setPixelSize(self._font_size)
             f.setWeight(QFont.Weight.DemiBold)
             p.setFont(f)
-            p.setPen(QColor(233, 240, 252))
+            p.setPen(text_c)
             p.drawText(rect.adjusted(0, -6, 0, 0), Qt.AlignmentFlag.AlignCenter,
                        f"{self._v:.0f}")
             fs = QFont("Segoe UI")
             fs.setPixelSize(max(9, int(self._font_size * 0.42)))
             p.setFont(fs)
-            p.setPen(QColor(150, 168, 200))
+            p.setPen(sub_c)
             p.drawText(rect.adjusted(0, 0, 0, -self._font_size * 0.9),
                        Qt.AlignmentFlag.AlignCenter, "%")
         if self._sub:
             fs = QFont("Segoe UI")
             fs.setPixelSize(max(9, int(self._font_size * 0.42)))
             p.setFont(fs)
-            p.setPen(QColor(150, 168, 200))
+            p.setPen(sub_c)
             p.drawText(rect.adjusted(0, self._font_size * 0.55, 0, 0),
                        Qt.AlignmentFlag.AlignCenter, self._sub)
 
@@ -151,7 +161,8 @@ class MiniBar(QWidget):
     def __init__(self, color_provider=None, parent=None, height=8):
         super().__init__(parent)
         self._v = 0.0
-        self._cp = color_provider or (lambda: ("#00D4FF", "#7B2FBE"))
+        self._cp = color_provider or (
+            lambda: {"c1": "#00D4FF", "c2": "#7B2FBE"})
         self.setFixedHeight(height)
 
     def set_value(self, v):
@@ -159,13 +170,18 @@ class MiniBar(QWidget):
         self.update()
 
     def paintEvent(self, _ev):
-        c1 = QColor(self._cp()[0])
-        c2 = QColor(self._cp()[1])
+        cp = self._cp()
+        if isinstance(cp, (tuple, list)):
+            c1 = QColor(cp[0])
+            c2 = QColor(cp[1])
+        else:
+            c1 = QColor(cp["c1"])
+            c2 = QColor(cp["c2"])
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         r = QRectF(0, 1, self.width(), self.height() - 2)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(240, 250, 255, 22))
+        p.setBrush(QColor(140, 165, 210, 40))
         p.drawRoundedRect(r, 4, 4)
         if self._v > 0.3:
             w = max(4, r.width() * self._v / 100.0)

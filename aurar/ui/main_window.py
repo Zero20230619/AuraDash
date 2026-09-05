@@ -8,8 +8,8 @@
 
 from types import SimpleNamespace
 
-from PySide6.QtCore import QEvent, QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSize, Qt, QTimer
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QFrame, QHBoxLayout,
                                QLabel, QMenu, QPushButton, QSizeGrip,
                                QStackedWidget, QSystemTrayIcon, QVBoxLayout,
@@ -149,6 +149,28 @@ class EdgeResizer(QWidget):
         self.raise_()
 
 
+def _lock_icon(locked: bool, color: QColor) -> QIcon:
+    """绘制挂锁图标：锁定=闭环锁梁；解锁=开环抬起。"""
+    pm = QPixmap(64, 64)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen(color, 5.5)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    p.setPen(pen)
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    # 锁体
+    p.drawRoundedRect(QRectF(14, 30, 36, 26), 6, 6)
+    # 锁梁
+    if locked:
+        p.drawArc(QRectF(20, 12, 24, 30), 0, 180 * 16)       # 闭环
+    else:
+        p.drawArc(QRectF(30, 14, 20, 24), 0, 150 * 16)       # 开环（左开口抬起）
+    p.end()
+    return QIcon(pm)
+
+
 class MainWindow(QWidget):
     def __init__(self, cfg, bus):
         super().__init__()
@@ -218,13 +240,17 @@ class MainWindow(QWidget):
         fv.setSpacing(6)
 
         # ---- 标题栏：锁 · 层级 · 最小化 · 关闭 ----
-        tb = QHBoxLayout()
+        tb_frame = QFrame(self._frame)
+        tb_frame.setObjectName("TitleBar")
+        tb = QHBoxLayout(tb_frame)
+        tb.setContentsMargins(8, 2, 6, 2)
         tb.setSpacing(4)
         self._tb_layout = tb
-        icon = QLabel(self)
+        self._tb_frame = tb_frame
+        icon = QLabel(tb_frame)
         icon.setPixmap(app_icon().pixmap(20, 20))
         icon.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        title = QLabel("AURA DASH", self)
+        title = QLabel("AURA DASH", tb_frame)
         title.setObjectName("CardTitleAccent")
         title.setStyleSheet("font-weight:600; letter-spacing:3px; font-size:12px;")
         title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -232,29 +258,30 @@ class MainWindow(QWidget):
         tb.addWidget(title)
         tb.addStretch(1)
 
-        self._btn_lock = QPushButton("锁", self)
+        self._btn_lock = QPushButton(tb_frame)
         self._btn_lock.setObjectName("BtnIcon")
         self._btn_lock.setCheckable(True)
         self._btn_lock.setFixedSize(28, 26)
+        self._btn_lock.setIconSize(QSize(18, 18))
         self._btn_lock.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_lock.toggled.connect(self._toggle_lock)
         self._btn_lock.setToolTip("锁定：固定位置与大小（点击解锁）")
 
-        self._btn_z = QPushButton(Z_ICONS["top"], self)
+        self._btn_z = QPushButton(Z_ICONS["top"], tb_frame)
         self._btn_z.setObjectName("BtnIcon")
         self._btn_z.setFixedSize(28, 26)
         self._btn_z.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_z.clicked.connect(self._cycle_z)
         self._btn_z.setToolTip("点击切换：置顶 → 普通 → 置底")
 
-        self._btn_min = QPushButton("—", self)
+        self._btn_min = QPushButton("—", tb_frame)
         self._btn_min.setObjectName("BtnIcon")
         self._btn_min.setFixedSize(28, 26)
         self._btn_min.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_min.setToolTip("最小化到任务栏")
         self._btn_min.clicked.connect(self.showMinimized)
 
-        self._btn_close = QPushButton("×", self)
+        self._btn_close = QPushButton("×", tb_frame)
         self._btn_close.setObjectName("BtnClose")
         self._btn_close.setFixedSize(28, 26)
         self._btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -263,7 +290,8 @@ class MainWindow(QWidget):
 
         for b in (self._btn_lock, self._btn_z, self._btn_min, self._btn_close):
             tb.addWidget(b)
-        fv.addLayout(tb)
+        fv.addWidget(tb_frame)
+        self._update_lock_icon()
 
         # ---- 主区域：左导航 + 页面栈 ----
         row = QHBoxLayout()
@@ -352,13 +380,20 @@ class MainWindow(QWidget):
     # ------------------------------------------------------------ 边缘交互
     def _apply_locked(self, show_resize: bool):
         locked = self.cfg.get("locked", False)
-        self._btn_lock.setText("锁")
         self._btn_lock.setToolTip("已锁定：固定位置与大小（点击解锁）" if locked
                                   else "锁定：固定位置与大小（点击锁定）")
+        self._update_lock_icon()
         for r in self._edges.values():
             r.setVisible(show_resize and not locked)
         self._grip.setVisible(not locked)
         self._relocate_edges()
+
+    def _update_lock_icon(self):
+        """锁图标按状态与主题配色刷新。"""
+        p = theme_mod.palette(self.cfg)
+        color = QColor(p["accent1"]) if self.cfg.get("locked", False) \
+            else QColor(p["sub"])
+        self._btn_lock.setIcon(_lock_icon(self.cfg.get("locked", False), color))
 
     def _toggle_lock(self, on: bool):
         self.cfg.set("locked", on)
@@ -467,6 +502,7 @@ class MainWindow(QWidget):
 
     def _apply_theme(self):
         theme_mod.apply(QApplication.instance(), self.cfg)
+        self._update_lock_icon()
 
     # ------------------------------------------------------------ 拖动
     def mousePressEvent(self, ev):

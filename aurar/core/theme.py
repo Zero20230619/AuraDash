@@ -16,6 +16,8 @@ BASE_DARK = {
     "text": "#E6ECF8",
     "sub": "#8FA3C0",
     "danger": "#FF6B81",
+    "card": "#141D38",      # 卡片实底（不随透明度变化 → 文字始终高对比）
+    "chrome": "#0D1428",    # 标题栏/侧栏实底
 }
 
 BASE_LIGHT = {
@@ -24,6 +26,8 @@ BASE_LIGHT = {
     "text": "#16203A",
     "sub": "#5A6780",
     "danger": "#E5484D",
+    "card": "#FFFFFF",
+    "chrome": "#FFFFFF",
 }
 
 
@@ -42,8 +46,8 @@ def palette(cfg) -> dict:
     c2 = t.get("accent2") or "#7B2FBE"
 
     frame = max(0.0, min(1.0, cfg.get("window_opacity", 100) / 100.0))
-    # 卡片/控件底色与边框为固定低透明度“玻璃”，不随框架透明度变化：
-    # 不透明度为 0 时（小部件模式）卡片依然隐约可见，文字始终可读。
+    # 只有“框架”（窗口背景渐变 + 边框）随不透明度淡出；
+    # 卡片/标题栏/侧栏为实底，文字始终与背景保持高对比。
     panel = 0.13
     panel2 = 0.26
     border = 0.15
@@ -56,11 +60,12 @@ def palette(cfg) -> dict:
         # rgba 形式（透明度驱动）
         "bg_rgba": _rgba(base["bg"], frame),
         "bg2_rgba": _rgba(base["bg2"], frame),
-        "text_rgba": _rgba(base["text"], 1.0),
-        "panel_rgba": _rgba(base["text"], panel) if base is BASE_DARK else "rgba(10,20,50,{:.2f})".format(panel),
-        "border_rgba": _rgba(base["sub"] if base is BASE_DARK else base["text"], border),
+        "border_rgba": _rgba(base["sub"], border),
         "track_rgba": _rgba(base["sub"], track),
         "hover_rgba": _rgba(base["text"], panel2),
+        # 实底部件（不随透明度变化）
+        "card_bg": base["card"],
+        "chrome_bg": base["chrome"],
     })
     return pal
 
@@ -76,13 +81,15 @@ def _qss(cfg) -> str:
         "@@ACC2@@": p["accent2"],
         "@@TEXT@@": p["text"],
         "@@SUB@@": p["sub"],
-        "@@PANEL@@": p["panel_rgba"],
+        "@@PANEL@@": p["track_rgba"],
         "@@PANEL2@@": p["hover_rgba"],
         "@@BORDER@@": p["border_rgba"],
         "@@TRACK@@": p["track_rgba"],
         "@@BASESIZE@@": str(font_px),
         "@@DANGER@@": p["danger"],
         "@@SIDE@@": f"rgba(0,0,0,{side_alpha:.2f})",
+        "@@CARD@@": p["card_bg"],
+        "@@CHROME@@": p["chrome_bg"],
     }
     qss = QSS_TEMPLATE
     for k, v in reps.items():
@@ -113,8 +120,8 @@ QFrame#RootFrame {
     border: 1px solid @@BORDER@@;
 }
 
-QFrame#TitleBar { background: transparent; }
-QFrame#SideBar  { background: @@SIDE@@; border-radius: 14px; }
+QFrame#TitleBar { background: @@CHROME@@; border-radius: 12px; }
+QFrame#SideBar  { background: @@CHROME@@; border-radius: 14px; }
 
 /* ---------- 标题栏按钮 ---------- */
 QPushButton#BtnIcon {
@@ -139,9 +146,9 @@ QPushButton#NavButton:checked {
     border: 1px solid rgba(0,212,255,0.35);
 }
 
-/* ---------- 卡片 ---------- */
+/* ---------- 卡片（实底，文字高对比） ---------- */
 QFrame#DashCard {
-    background: @@PANEL@@;
+    background: @@CARD@@;
     border: 1px solid @@BORDER@@;
     border-radius: 12px;
 }
@@ -150,7 +157,7 @@ QFrame#DashCard[dragging="true"] {
     border: 1px solid @@ACC1@@;
 }
 QFrame#StatsBox {
-    background: @@PANEL@@; border: 1px solid @@BORDER@@; border-radius: 12px;
+    background: @@CARD@@; border: 1px solid @@BORDER@@; border-radius: 12px;
 }
 QLabel#CardTitle { color: @@SUB@@; font-size: 12px; letter-spacing: 1px; }
 QLabel#CardTitleAccent { color: @@ACC1@@; font-size: 12px; letter-spacing: 1px; }

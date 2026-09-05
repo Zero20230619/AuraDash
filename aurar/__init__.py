@@ -7,5 +7,5 @@
     aurar.ui       主窗口与通用控件
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 APP_NAME = "AuraDash"

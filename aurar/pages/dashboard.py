@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QPushButton,
                                QVBoxLayout)
 
 from ..core import theme as theme_mod
+from PySide6.QtGui import QColor
 from ..ui.widgets import (MiniBar, NeonCard, RingGauge, fmt_bps, fmt_bytes,
                           make_label)
 from .base import Page
@@ -354,8 +355,14 @@ class DashboardPage(Page):
         self.setLayout(self._grid)
 
     def colors(self):
+        """返回 {c1,c2,text,sub,track} 供自绘控件取色（主题感知）。"""
         p = theme_mod.palette(self.cfg)
-        return p["accent1"], p["accent2"]
+        if p["theme_name"] == "light":
+            track = QColor(30, 50, 110, 28)
+        else:
+            track = QColor(240, 250, 255, 26)
+        return {"c1": p["accent1"], "c2": p["accent2"],
+                "text": p["text"], "sub": p["sub"], "track": track}
 
     def build(self):
         for cid, factory in CARD_FACTORIES.items():

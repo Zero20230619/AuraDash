@@ -12,7 +12,7 @@
 [![PySide6](https://img.shields.io/badge/PySide6-6.8%2B-3776AB?logo=qt&logoColor=white)](https://doc.qt.io/qtforpython-6/)
 [![Windows](https://img.shields.io/badge/Windows-10%2022H2%2F11-0078D4?logo=windows&logoColor=white)](https://www.microsoft.com/windows)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?logo=opensourceinitiative&logoColor=white)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.0.0-00D4FF)](https://github.com/Zero20230619/AuraDash)
+[![Release](https://img.shields.io/badge/release-v1.0.1-00D4FF)](https://github.com/Zero20230619/AuraDash)
 
 </div>
 
@@ -24,6 +24,7 @@
 - 无边框玻璃质感悬浮窗；**拖动窗口任意边缘（八向）或右下角手柄缩放**（最小 400×300）
 - **固定不透明度**（设置中 0~100% 调节，不随鼠标悬停变化）：
   - 100% = 完全的不透明显示；**0% = 边框与背景完全消失，只保留时钟、CPU、GPU 等主体元素**（滴答清单桌面小部件风格）
+  - 只有边框/背景随不透明度淡出，**卡片保持实底、文字始终高对比清晰可读**
 - **🔒 锁定**：点击标题栏锁图标固定位置与大小，锁定后无法拖动/缩放，再次点击解锁
 - **显示层级循环切换**：置顶（最上层）→ 普通 → 置底（桌面底层，避免误触、不遮挡窗口）
 - **日/夜主题**：点击左侧边栏的 ☀/☾ 图标或设置页 一键切换 白天/黑夜 两套主题
@@ -74,7 +75,7 @@
 
 ### 方式零：下载发布版（最简单）
 
-前往 [Releases](https://github.com/Zero20230619/AuraDash/releases) 下载 `AuraDash_v1.0.0.exe`，双击即用（免安装，单文件）。
+前往 [Releases](https://github.com/Zero20230619/AuraDash/releases) 下载 `AuraDash_v1.0.1.exe`，双击即用（免安装，单文件）。
 > Windows 智能屏幕提示“未知发布者”时：`更多信息 → 仍要运行`（未做代码签名，属正常现象）。
 
 ### 方式一：直接运行（开发模式）
@@ -98,7 +99,7 @@ powershell -ExecutionPolicy Bypass -File build.ps1
 
 1. 安装 [Inno Setup 6](https://jrsoftware.org/isinfo.php)
 2. 运行 `build.ps1` 后，用 Inno Setup 打开 `installer\AuraDash.iss` 编译
-3. 得到 `installer\AuraDash_Setup_1.0.0.exe`：一键安装、可选桌面快捷方式 / 开始菜单 / 开机自启，自动请求 UAC，支持控制面板卸载
+3. 得到 `installer\AuraDash_Setup_1.0.1.exe`：一键安装、可选桌面快捷方式 / 开始菜单 / 开机自启，自动请求 UAC，支持控制面板卸载
 
 > Windows 智能屏幕若提示未知发布者：`更多信息 → 仍要运行`（开源项目未做代码签名，属正常现象）。
 
